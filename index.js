@@ -1,85 +1,108 @@
-
-const express = require('express')
-const cors = require('cors')
+const express = require("express");
+const cors = require("cors");
+const AWS = require("aws-sdk");
+const s3 = new AWS.S3();
 
 let app = express();
-app.use(express.json())
-app.use(express.urlencoded())
+app.use(express.json());
+app.use(express.urlencoded());
 
-app.use(cors())
-let fs = require('fs');
+app.use(cors());
+let fs = require("fs");
 
-
-app.get('/', (req, res) => {
-    res.send("Hello World")
-})
-
-app.post('/notes/:username', (req, res) => {
-    let username = req.params.username;
-    data = JSON.stringify(req.body);
-    data.updatedTime = new Date();
-
-    if(fs.existsSync(`./notes-storage/${username}`) && fs.existsSync(`./notes-storage/${username}/${req.body.timestamp}`))
-        res.status(400).send('notes already create with username... Use a PUT to edit note.')
-    else if(!fs.existsSync(`./notes-storage/${username}`))
-        fs.mkdirSync(`./notes-storage/${username}`);
-    
-        fs.writeFile(
-            `./notes-storage/${username}/${req.body.timestamp}`,
-            data,
-            "utf-8",
-            (err) => {
-                if (err) {
-                    console.log(err);
-                    res.status(500).send();
-                }
-                res.status(200).send(true);
-            }
-        );
-})
-
-app.put('/notes/:username', (req, res) => {
-    data = JSON.stringify(req.body);
-    data.updatedTime = new Date();
-
-    fs.writeFile(`./notes-storage/${req.params.username}/${req.body.timestamp}`, data, 'utf-8', (err)=>{
-        if(err){
-            console.log(err)
-            res.status(500).end();
-        }
-        res.status(200).send(true);
-    });
-})
-
-app.get("/notes/:username", (req, res) => {
-    let obj = [];
-
-    if(!fs.existsSync(`./notes-storage/${req.params.username}`))
-        res.status(400).send(`Notes not present for user - ${req.params.username}`)
-
-    fs.readdirSync(`notes-storage/${req.params.username}`, "utf-8").forEach((filename) =>  {
-        obj.push(JSON.parse(fs.readFileSync(`./notes-storage/${req.params.username}/${filename}`, "utf-8")))
-    })
-        res.setHeader("content-type", "application/json");
-        res.status(200).send(obj);
+app.get("/", (req, res) => {
+    res.send("Hello World");
 });
 
-app.get('/notes/isUsernameAvailable/:username', (req, res)=>{
-    res.send(!fs.existsSync(`./notes-storage/${req.params.username}`))
-})
+app.post("/notes/:username", async (req, res) => {
+    let filename = req.params.username;
 
-app.delete('/notes/:username/:noteid', (req, res)=>{
-    if(fs.existsSync(`./notes-storage/${req.params.username}`)){
-        if(fs.existsSync(`./notes-storage/${req.params.username}/${req.params.noteid}`)){
-            fs.rm(`./notes-storage/${req.params.username}/${req.params.noteid}`, (err) => {
-                if(err){
-                    res.status(200).send(false);
-                    return;
-                }
-                res.status(200).send(true);
-            });
+    await s3
+        .putObject({
+            Body: JSON.stringify(req.body),
+            Bucket: process.env.BUCKET,
+            Key: filename,
+        })
+        .promise();
+
+    res.set("Content-type", "text/plain");
+    res.send("ok").end();
+});
+
+app.put("/notes/:username", async (req, res) => {
+    let filename = req.params.username;
+
+    await s3
+        .putObject({
+            Body: JSON.stringify(req.body),
+            Bucket: process.env.BUCKET,
+            Key: filename,
+        })
+        .promise();
+
+    res.set("Content-type", "text/plain");
+    res.send("ok").end();
+});
+
+app.get("/notes/:username", async (req, res) => {
+    let filename = req.params.username;
+
+    try {
+        let s3File = await s3
+            .getObject({
+                Bucket: process.env.BUCKET,
+                Key: filename,
+            })
+            .promise();
+
+        res.set("Content-type", s3File.ContentType);
+        res.send(s3File.Body.toString()).end();
+    } catch (error) {
+        if (error.code === "NoSuchKey") {
+            console.log(`No such notes present for  ${filename}`);
+            res.sendStatus(404).end();
+        } else {
+            console.log(error);
+            res.sendStatus(500).end();
         }
     }
-})
+});
 
-app.listen(5000, console.log("Listening on port number 3000 ................."))
+app.get("/notes/isUsernameAvailable/:username", (req, res) => {
+    try {
+        let s3File = await s3
+            .getObject({
+                Bucket: process.env.BUCKET,
+                Key: filename,
+            })
+            .promise();
+
+        res.set("Content-type", "text/plain");
+        res.send(false).end();
+    } 
+    catch (error) {
+        if (error.code === "NoSuchKey") {
+            res.send(true).end();
+        } else {
+            console.log(error);
+            res.sendStatus(500).end();
+        }
+    }
+});
+
+app.delete("/notes/:username/:noteid", async (req, res) => {
+    let filename = req.params.username;
+
+    await s3
+        .deleteObject({
+            Bucket: process.env.BUCKET,
+            Key: filename,
+        })
+        .promise();
+
+    res.set("Content-type", "text/plain");
+    res.send("ok").end();
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, console.log(`index.js listening at ${port}`));
