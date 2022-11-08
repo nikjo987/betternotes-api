@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
 const AWS = require("aws-sdk");
 const s3 = new AWS.S3();
 
@@ -31,10 +32,32 @@ app.post("/notes/:username", async (req, res) => {
 
 app.put("/notes/:username", async (req, res) => {
     let filename = req.params.username;
+    let body = [];
+    try {
+        let s3File = await s3
+            .getObject({
+                Bucket: process.env.BUCKET,
+                Key: filename,
+            })
+            .promise();
 
+        body = s3File.Body.filter(
+            (note) => note.timestamp !== req.body.timestamp
+        );
+        body.push(req.body);
+
+    } catch (error) {
+        if (error.code === "NoSuchKey") {
+            body.push(req.body);
+        } 
+        else {
+            console.log(error);
+            res.sendStatus(500).end();
+        }
+    }
     await s3
         .putObject({
-            Body: JSON.stringify(req.body),
+            Body: JSON.stringify(body),
             Bucket: process.env.BUCKET,
             Key: filename,
         })
@@ -68,7 +91,8 @@ app.get("/notes/:username", async (req, res) => {
     }
 });
 
-app.get("/notes/isUsernameAvailable/:username", (req, res) => {
+app.get("/notes/isUsernameAvailable/:username", async (req, res) => {
+    let filename = req.params.username;
     try {
         let s3File = await s3
             .getObject({
@@ -79,8 +103,7 @@ app.get("/notes/isUsernameAvailable/:username", (req, res) => {
 
         res.set("Content-type", "text/plain");
         res.send(false).end();
-    } 
-    catch (error) {
+    } catch (error) {
         if (error.code === "NoSuchKey") {
             res.send(true).end();
         } else {
