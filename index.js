@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const AWS = require("aws-sdk");
-const s3 = new AWS.S3();
+const s3 = new AWS.S3(); 
 
 let app = express();
 app.use(express.json());
