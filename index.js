@@ -87,6 +87,31 @@ app.get("/notes/:username", async (req, res) => {
     }
 });
 
+app.get("/notes/:username/:noteid", async (req, res) => {
+    let filename = req.params.username + ".json";
+    let noteid = req.params.noteid;
+    try {
+        let s3File = await s3
+            .getObject({
+                Bucket: process.env.BUCKET,
+                Key: filename,
+            })
+            .promise();
+        
+        let res = JSON.parse(s3File.Body.toString("utf-8"));
+        res.set("Content-type", "application/json");
+        res.send(res.filter(note => note.timestamp == noteid)[0]).end();
+    } catch (error) {
+        if (error.code === "NoSuchKey") {
+            console.log(`No such notes present for  ${filename}`);
+            res.sendStatus(404).end();
+        } else {
+            console.log(error);
+            res.sendStatus(500).end();
+        }
+    }
+});
+
 app.get("/notes/isUsernameAvailable/:username", async (req, res) => {
     let filename = req.params.username+'.json';
     
@@ -142,7 +167,6 @@ app.delete("/notes/:username/:noteid", async (req, res) => {
         // body = body.filter(note => note.timestamp !== req.params.noteid);
         const findIndex = body.findIndex(a => a.timestamp == req.params.noteid)
         findIndex !== -1 && body.splice(findIndex , 1)
-        console.log(body, JSON.parse(s3File.Body.toString("utf-8")))
     } 
     catch (error) {
         if (error.code === "NoSuchKey") {
