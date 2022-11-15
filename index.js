@@ -98,9 +98,9 @@ app.get("/notes/:username/:noteid", async (req, res) => {
             })
             .promise();
         
-        let res = JSON.parse(s3File.Body.toString("utf-8"));
+        let result = JSON.parse(s3File.Body.toString("utf-8"));
         res.set("Content-type", "application/json");
-        res.send(res.filter(note => note.timestamp == noteid)[0]).end();
+        res.send(result.filter(note => note.timestamp == noteid)[0]).end();
     } catch (error) {
         if (error.code === "NoSuchKey") {
             console.log(`No such notes present for  ${filename}`);
