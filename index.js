@@ -87,31 +87,6 @@ app.get("/notes/:username", async (req, res) => {
     }
 });
 
-app.get("/notes/:username/:noteid", async (req, res) => {
-    let filename = req.params.username + ".json";
-    let noteid = req.params.noteid;
-    try {
-        let s3File = await s3
-            .getObject({
-                Bucket: process.env.BUCKET,
-                Key: filename,
-            })
-            .promise();
-        
-        let result = JSON.parse(s3File.Body.toString("utf-8"));
-        res.set("Content-type", "application/json");
-        res.send(result.filter(note => note.timestamp == noteid)[0]).end();
-    } catch (error) {
-        if (error.code === "NoSuchKey") {
-            console.log(`No such notes present for  ${filename}`);
-            res.sendStatus(404).end();
-        } else {
-            console.log(error);
-            res.sendStatus(500).end();
-        }
-    }
-});
-
 app.get("/notes/isUsernameAvailable/:username", async (req, res) => {
     let filename = req.params.username+'.json';
     
@@ -151,6 +126,33 @@ app.get("/notes/isUsernameAvailable/:username", async (req, res) => {
     //     }
     // }
 });
+
+
+app.get("/notes/:username/:noteid", async (req, res) => {
+    let filename = req.params.username + ".json";
+    let noteid = req.params.noteid;
+    try {
+        let s3File = await s3
+            .getObject({
+                Bucket: process.env.BUCKET,
+                Key: filename,
+            })
+            .promise();
+        
+        let result = JSON.parse(s3File.Body.toString("utf-8"));
+        res.set("Content-type", "application/json");
+        res.send(result.filter(note => note.timestamp == noteid)[0]).end();
+    } catch (error) {
+        if (error.code === "NoSuchKey") {
+            console.log(`No such notes present for  ${filename}`);
+            res.sendStatus(404).end();
+        } else {
+            console.log(error);
+            res.sendStatus(500).end();
+        }
+    }
+});
+
 
 app.delete("/notes/:username/:noteid", async (req, res) => {
     let filename = req.params.username + ".json";
